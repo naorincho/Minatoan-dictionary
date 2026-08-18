@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>湊語辞書 | Minatoan Dictionary</title>
+
+<style>
+
+body {
+    font-family: sans-serif;
+    max-width: 700px;
+    margin: auto;
+    padding: 20px;
+    background: #f5f5f5;
+    color: #222;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #777;
+    margin-bottom: 20px;
+}
+
+#search {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    box-sizing: border-box;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 7px;
+}
+
+.categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.category {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.category:hover {
+    background: #ddd;
+}
+
+#modifierMenu {
+    display: none;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+#modifierMenu button {
+    padding: 7px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #e8e8e8;
+    cursor: pointer;
+}
+
+#modifierMenu button:hover {
+    background: #d8d8d8;
+}
+
+.word {
+    background: white;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.word:hover {
+    background: #eeeeee;
+}
+
+.word strong {
+    font-size: 22px;
+}
+
+.translation {
+    color: #555;
+    margin-top: 4px;
+}
+
+.type {
+    font-size: 13px;
+    color: #888;
+    margin-top: 5px;
+}
+
+#overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 5;
+}
+
+#detail {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 85%;
+    max-width: 450px;
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 5px 30px rgba(0,0,0,0.3);
+    z-index: 10;
+}
+
+#close {
+    float: right;
+    font-size: 25px;
+    cursor: pointer;
+    color: #777;
+}
+
+#detailWord {
+    font-size: 30px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+.detailTitle {
+    font-weight: bold;
+    margin-top: 15px;
+    margin-bottom: 3px;
+}
+
+#error {
+    color: #b00020;
+    text-align: center;
+    margin-top: 20px;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+<h1>湊語辞書</h1>
+
+<div class="subtitle">
+    Minatoan Dictionary
+</div>
+
+
+<input
+    type="text"
+    id="search"
+    placeholder="単語や訳を検索..."
+>
+
+
+<div class="categories">
+
+    <button class="category" onclick="selectCategory('all')">
+        すべて
+    </button>
+
+    <button class="category" onclick="selectCategory('noun')">
+        名詞
+    </button>
+
+    <button class="category" onclick="selectCategory('verb')">
+        動詞
+    </button>
+
+    <button class="category" onclick="selectCategory('modifier')">
+        修飾詞
+    </button>
+
+    <button class="category" onclick="selectCategory('conjunction')">
+        接続詞
+    </button>
+
+    <button class="category" onclick="selectCategory('other')">
+        その他
+    </button>
+
+</div>
+
+
+<div id="modifierMenu">
+
+    <button onclick="selectModifier('all')">
+        すべて
+    </button>
+
+    <button onclick="selectModifier('adjective')">
+        形容形
+    </button>
+
+    <button onclick="selectModifier('adverb')">
+        副形
+    </button>
+
+</div>
+
+
+<div id="list">
+    読み込み中……
+</div>
+
+
+<div id="error"></div>
+
+
+<div id="overlay" onclick="closeDetail()"></div>
+
+
+<div id="detail">
+
+    <span id="close" onclick="closeDetail()">×</span>
+
+    <div id="detailWord"></div>
+
+    <div class="detailTitle">
+        訳
+    </div>
+
+    <div id="detailTranslation"></div>
+
+    <div class="detailTitle">
+        品詞
+    </div>
+
+    <div id="detailType"></div>
+
+</div>
+
+
+<script>
+
+
+/* =========================================
+   Googleスプレッドシート
+   ========================================= */
+
+const CSV_URL =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vSTugNWEYkzfmoN0cqoJ-rtY7IT5M71vyen-hJhyiOcezVD3BEEQTVxbN3Pk-0qIyge_RD9pWsUtc95/pub?output=csv";
+
+
+let words = [];
+
+let currentCategory = "all";
+
+let currentModifier = "all";
+
+
+/* =========================================
+   CSVを読み込む
+   ========================================= */
+
+async function loadWords() {
+
+    try {
+
+        const response = await fetch(CSV_URL);
+
+        if (!response.ok) {
+            throw new Error("CSVを取得できませんでした");
+        }
+
+        const csv = await response.text();
+
+        words = parseCSV(csv);
+
+        showWords();
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        document.getElementById("list").textContent = "";
+
+        document.getElementById("error").textContent =
+            "単語を読み込めませんでした。";
+
+    }
+
+}
+
+
+/* =========================================
+   CSV解析
+   ========================================= */
+
+function parseCSV(csv) {
+
+    const rows = [];
+
+    let row = [];
+
+    let cell = "";
+
+    let insideQuotes = false;
+
+
+    for (let i = 0; i < csv.length; i++) {
+
+        const char = csv[i];
+
+        const next = csv[i + 1];
+
+
+        if (
+            char === '"'
+            &&
+            insideQuotes
+            &&
+            next === '"'
+        ) {
+
+            cell += '"';
+
+            i++;
+
+        }
+
+        else if (char === '"') {
+
+            insideQuotes = !insideQuotes;
+
+        }
+
+        else if (
+            char === ","
+            &&
+            !insideQuotes
+        ) {
+
+            row.push(cell);
+
+            cell = "";
+
+        }
+
+        else if (
+            (char === "\n" || char === "\r")
+            &&
+            !insideQuotes
+        ) {
+
+            if (
+                char === "\r"
+                &&
+                next === "\n"
+            ) {
+
+                i++;
+
+            }
+
+            row.push(cell);
+
+            rows.push(row);
+
+            row = [];
+
+            cell = "";
+
+        }
+
+        else {
+
+            cell += char;
+
+        }
+
+    }
+
+
+    if (
+        cell !== ""
+        ||
+        row.length > 0
+    ) {
+
+        row.push(cell);
+
+        rows.push(row);
+
+    }
+
+
+    /*
+       1行目は
+       単語 / 品詞 / 訳
+       なので除外
+    */
+
+    return rows
+        .slice(1)
+
+        .filter(row =>
+            row[0]
+            &&
+            row[0].trim() !== ""
+        )
+
+        .map(row => ({
+
+            /*
+               A列
+               単語
+            */
+
+            word:
+                (row[0] || "").trim(),
+
+
+            /*
+               B列
+               品詞
+            */
+
+            type:
+                (row[1] || "").trim(),
+
+
+            /*
+               C列
+               訳
+            */
+
+            translation:
+                (row[2] || "").trim()
+
+        }));
+
+}
+
+
+/* =========================================
+   大カテゴリーを判定
+   ========================================= */
+
+function getCategory(type) {
+
+    /*
+       「名詞・外来語」
+       「名詞・古語」
+       なども名詞として扱う
+    */
+
+    if (type.includes("名詞")) {
+
+        return "noun";
+
+    }
+
+
+    if (type.includes("動詞")) {
+
+        return "verb";
+
+    }
+
+
+    /*
+       形容形・副形は修飾詞
+    */
+
+    if (
+        type.includes("形容形")
+        ||
+        type.includes("副形")
+    ) {
+
+        return "modifier";
+
+    }
+
+
+    if (type.includes("接続詞")) {
+
+        return "conjunction";
+
+    }
+
+
+    return "other";
+
+}
+
+
+/* =========================================
+   修飾詞の種類
+   ========================================= */
+
+function getModifier(type) {
+
+    if (type.includes("形容形")) {
+
+        return "adjective";
+
+    }
+
+
+    if (type.includes("副形")) {
+
+        return "adverb";
+
+    }
+
+
+    return "";
+
+}
+
+
+/* =========================================
+   カテゴリー変更
+   ========================================= */
+
+function selectCategory(category) {
+
+    currentCategory = category;
+
+
+    if (category === "modifier") {
+
+        document.getElementById("modifierMenu")
+            .style.display = "flex";
+
+    }
+
+    else {
+
+        document.getElementById("modifierMenu")
+            .style.display = "none";
+
+        currentModifier = "all";
+
+    }
+
+
+    showWords();
+
+}
+
+
+/* =========================================
+   形容形・副形
+   ========================================= */
+
+function selectModifier(modifier) {
+
+    currentModifier = modifier;
+
+    showWords();
+
+}
+
+
+/* =========================================
+   単語表示
+   ========================================= */
+
+function showWords() {
+
+    const search =
+        document
+            .getElementById("search")
+            .value
+            .trim()
+            .toLowerCase();
+
+
+    const list =
+        document.getElementById("list");
+
+
+    list.innerHTML = "";
+
+
+    const filtered =
+        words.filter(item => {
+
+            const category =
+                getCategory(item.type);
+
+
+            const modifier =
+                getModifier(item.type);
+
+
+            const categoryOK =
+
+                currentCategory === "all"
+
+                ||
+
+                category === currentCategory;
+
+
+            let modifierOK = true;
+
+
+            if (
+                currentCategory === "modifier"
+            ) {
+
+                modifierOK =
+
+                    currentModifier === "all"
+
+                    ||
+
+                    modifier === currentModifier;
+
+            }
+
+
+            const searchOK =
+
+                item.word
+                    .toLowerCase()
+                    .includes(search)
+
+                ||
+
+                item.translation
+                    .toLowerCase()
+                    .includes(search);
+
+
+            return (
+
+                categoryOK
+
+                &&
+
+                modifierOK
+
+                &&
+
+                searchOK
+
+            );
+
+        });
+
+
+    if (filtered.length === 0) {
+
+        list.textContent =
+            "該当する単語がありません。";
+
+        return;
+
+    }
+
+
+    filtered.forEach(item => {
+
+
+        const div =
+            document.createElement("div");
+
+
+        div.className =
+            "word";
+
+
+        const word =
+            document.createElement("strong");
+
+
+        word.textContent =
+            item.word;
+
+
+        const translation =
+            document.createElement("div");
+
+
+        translation.className =
+            "translation";
+
+
+        translation.textContent =
+            item.translation;
+
+
+        const type =
+            document.createElement("div");
+
+
+        type.className =
+            "type";
+
+
+        type.textContent =
+            item.type;
+
+
+        div.appendChild(word);
+
+        div.appendChild(translation);
+
+        div.appendChild(type);
+
+
+        div.onclick = function() {
+
+            openDetail(item);
+
+        };
+
+
+        list.appendChild(div);
+
+    });
+
+}
+
+
+/* =========================================
+   詳細表示
+   ========================================= */
+
+function openDetail(item) {
+
+    document.getElementById("detailWord")
+        .textContent =
+        item.word;
+
+
+    document.getElementById("detailTranslation")
+        .textContent =
+        item.translation;
+
+
+    document.getElementById("detailType")
+        .textContent =
+        item.type;
+
+
+    document.getElementById("overlay")
+        .style.display =
+        "block";
+
+
+    document.getElementById("detail")
+        .style.display =
+        "block";
+
+}
+
+
+/* =========================================
+   詳細を閉じる
+   ========================================= */
+
+function closeDetail() {
+
+    document.getElementById("overlay")
+        .style.display =
+        "none";
+
+
+    document.getElementById("detail")
+        .style.display =
+        "none";
+
+}
+
+
+/* =========================================
+   検索
+   ========================================= */
+
+document
+    .getElementById("search")
+    .addEventListener(
+        "input",
+        showWords
+    );
+
+
+/* =========================================
+   起動
+   ========================================= */
+
+loadWords();
+
+
+</script>
+
+</body>
+
+</html>
